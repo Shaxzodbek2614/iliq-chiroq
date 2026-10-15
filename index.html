@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>iliq. — chiroqni yoqing</title>
+<meta name="description" content="Tortgichni torting va xonani iliq nurga to‘ldiring. 3D interaktiv chiroq.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #f6e7d3;
+    --muted: rgba(246, 231, 211, .62);
+    --amber: #ffb15c;
+    --ink: #0b0705;
+    --glow: 0;
+    --bx: 70%;
+    --by: 45%;
+    --gutter: clamp(16px, 6vw, 96px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--ink); color: var(--cream);
+    font-family: 'Manrope', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas#scene {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    display: block; touch-action: none; outline: none;
+    opacity: 0; transition: opacity 1.2s ease;
+  }
+  body.ready canvas#scene { opacity: 1; }
+
+  .glow, .vignette, .grain { position: fixed; inset: 0; pointer-events: none; }
+  .glow {
+    background: radial-gradient(circle at var(--bx) var(--by),
+      rgba(255, 170, 90, .30), rgba(255, 140, 60, .07) 32%, transparent 62%);
+    opacity: var(--glow); mix-blend-mode: screen;
+  }
+  .vignette {
+    background: radial-gradient(ellipse 120% 95% at var(--bx) var(--by),
+      transparent 32%, rgba(4, 2, 1, .82) 100%);
+    opacity: calc(1 - var(--glow) * .45);
+  }
+  .grain {
+    opacity: .07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 26px var(--gutter);
+  }
+  .logo {
+    font-family: 'Fraunces', serif; font-style: italic; font-weight: 500;
+    font-size: 1.6rem; color: var(--cream); text-decoration: none; letter-spacing: -.01em;
+  }
+  .logo span { color: var(--amber); transition: text-shadow .6s; }
+  body.on .logo span { text-shadow: 0 0 14px rgba(255, 170, 80, .9); }
+  .nav nav { display: flex; gap: 32px; }
+  .nav nav a {
+    color: var(--muted); text-decoration: none; font-size: .9rem; letter-spacing: .02em;
+    transition: color .3s;
+  }
+  .nav nav a:hover { color: var(--cream); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: fixed; left: var(--gutter); top: 50%; transform: translateY(-50%);
+    width: min(520px, 40vw); pointer-events: none;
+  }
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px; margin: 0 0 22px;
+    font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #5b4636; flex: none;
+    transition: background .5s, box-shadow .5s;
+  }
+  body.on .dot { background: var(--amber); box-shadow: 0 0 12px 2px rgba(255, 170, 80, .8); }
+
+  .swap { display: grid; }
+  .swap > span { grid-area: 1 / 1; transition: opacity .7s ease, transform .7s ease, filter .7s ease; }
+  .swap > .on-t { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+  body.on .swap > .on-t { opacity: 1; transform: none; filter: none; transition-delay: .25s; }
+  body.on .swap > .off-t { opacity: 0; transform: translateY(-14px); filter: blur(6px); }
+
+  h1 {
+    font-family: 'Fraunces', serif; font-weight: 350; margin: 0 0 22px;
+    font-size: clamp(2.4rem, 4.6vw, 4.4rem); line-height: 1.02; letter-spacing: -.025em;
+  }
+  h1 em { font-style: italic; color: #c9a27a; transition: color .6s, text-shadow .6s; }
+  body.on h1 em { color: var(--amber); text-shadow: 0 0 28px rgba(255, 160, 70, .55); }
+  .lead { margin: 0; font-size: 1.05rem; line-height: 1.65; color: var(--muted); max-width: 30em; }
+
+  .extras {
+    margin-top: 36px; opacity: 0; transform: translateY(10px);
+    transition: opacity .8s ease, transform .8s ease; pointer-events: none;
+  }
+  body.on .extras { opacity: 1; transform: none; transition-delay: .5s; pointer-events: auto; }
+  .stats { display: flex; gap: 34px; margin-bottom: 32px; }
+  .stats b { display: block; font-family: 'Fraunces', serif; font-weight: 400; font-size: 1.7rem; color: var(--cream); }
+  .stats span { font-size: .8rem; color: var(--muted); }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 24px; border-radius: 999px; text-decoration: none;
+    background: linear-gradient(180deg, #ffc27a, #f39a45); color: #2a1406;
+    font-weight: 600; font-size: .95rem;
+    box-shadow: 0 10px 40px -8px rgba(255, 150, 60, .65), inset 0 1px 0 rgba(255, 255, 255, .5);
+    transition: transform .25s, box-shadow .25s;
+  }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 16px 50px -8px rgba(255, 150, 60, .8), inset 0 1px 0 rgba(255, 255, 255, .5); }
+
+  /* ---------- pull hint ---------- */
+  .hint {
+    position: fixed; left: 0; top: 0; pointer-events: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 13px 7px 10px; border-radius: 999px;
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--cream);
+    background: rgba(255, 220, 180, .07); border: 1px solid rgba(255, 220, 180, .18);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; transition: opacity .5s;
+    will-change: transform;
+  }
+  body.ready:not(.on):not(.dragging) .hint { opacity: 1; transition-delay: 1.2s; }
+  .hint .arrow { display: inline-block; animation: tug 1.6s ease-in-out infinite; }
+  @keyframes tug { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(4px); } }
+
+  /* ---------- footer ---------- */
+  .foot {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    display: flex; justify-content: space-between; gap: 16px;
+    padding: 22px var(--gutter); font-size: .78rem; color: rgba(246, 231, 211, .45);
+    pointer-events: none;
+  }
+  .foot .touch { display: none; }
+  @media (hover: none) {
+    .foot .desk { display: none; }
+    .foot .touch { display: inline; }
+  }
+  kbd {
+    font-family: inherit; font-size: .72rem; padding: 2px 7px; border-radius: 5px;
+    border: 1px solid rgba(246, 231, 211, .25); color: var(--muted);
+  }
+
+  .sr {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .sr:focus-visible {
+    width: auto; height: auto; clip: auto; left: var(--gutter); bottom: 64px; position: fixed;
+    padding: 8px 14px; border-radius: 8px; background: var(--cream); color: var(--ink); border: 0;
+  }
+
+  @media (max-width: 760px) {
+    .nav { padding: 18px 20px; }
+    .nav nav { display: none; }
+    .hero { top: 78px; left: 20px; right: 20px; width: auto; transform: none; }
+    .eyebrow { margin-bottom: 14px; }
+    h1 { font-size: clamp(2rem, 9vw, 2.6rem); margin-bottom: 12px; }
+    .lead { font-size: .95rem; line-height: 1.55; }
+    .extras { display: none; }
+    .foot { padding: 16px 20px; justify-content: center; }
+    .foot span:last-child { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hint .arrow { animation: none; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="3D chiroq sahnasi"></canvas>
+<div class="glow" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="nav">
+  <a class="logo" href="#">iliq<span>.</span></a>
+  <nav>
+    <a href="#">Kolleksiya</a>
+    <a href="#">Hikoya</a>
+    <a href="#">Aloqa</a>
+  </nav>
+</header>
+
+<main class="hero">
+  <p class="eyebrow">
+    <span class="dot"></span>
+    <span class="swap">
+      <span class="off-t">Qo‘lda yasalgan chiroqlar</span>
+      <span class="on-t">Chiroq yondi</span>
+    </span>
+  </p>
+  <h1 class="swap">
+    <span class="off-t">Qorong‘ulikda ham <em>iliqlik</em> bor.</span>
+    <span class="on-t">Mana endi hammasi <em>iliq</em>.</span>
+  </h1>
+  <p class="lead swap">
+    <span class="off-t">Lampochka ostida osilib turgan tortgichni pastga torting — xona yumshoq, iliq nurga to‘lsin.</span>
+    <span class="on-t">2700K yumshoq nur, jez patron va qo‘lda puflangan shisha. Har bir kechangiz shunday iliq o‘tsin.</span>
+  </p>
+  <div class="extras">
+    <div class="stats">
+      <div><b>2700K</b><span>iliq nur</span></div>
+      <div><b>100%</b><span>qo‘l mehnati</span></div>
+      <div><b>∞</b><span>sokin oqshomlar</span></div>
+    </div>
+    <a class="cta" href="#">Kolleksiyani ko‘rish <span aria-hidden="true">→</span></a>
+  </div>
+</main>
+
+<div class="hint" id="hint" aria-hidden="true"><span class="arrow">↓</span>Torting</div>
+
+<footer class="foot">
+  <span class="desk">Tortgichni torting yoki <kbd>Space</kbd> tugmasini bosing</span>
+  <span class="touch">Tortgichni barmog‘ingiz bilan pastga torting</span>
+  <span>© 2026 iliq. · Toshkent</span>
+</footer>
+
+<button class="sr" id="a11y-toggle" aria-pressed="false">Chiroqni yoqish</button>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const $ = (s) => document.querySelector(s);
+const root = document.documentElement;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const V2 = (x, y) => new THREE.Vector2(x, y);
+
+/* ================= renderer / scene ================= */
+const canvas = $('#scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const OFF_BG = new THREE.Color(0x0b0705);
+const ON_BG = new THREE.Color(0x22140a);
+const scene = new THREE.Scene();
+scene.background = OFF_BG.clone();
+scene.fog = new THREE.Fog(OFF_BG.getHex(), 7, 19);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.12;
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 60);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 0.9);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* ================= textures ================= */
+function plasterTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#8a6248';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 90; i++) {
+    const r = 20 + Math.random() * 90;
+    const x = Math.random() * 512, y = Math.random() * 512;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    const light = Math.random() < 0.5;
+    gr.addColorStop(0, light ? 'rgba(190,150,115,.10)' : 'rgba(60,35,20,.10)');
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const img = g.getImageData(0, 0, 512, 512);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 16;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(4, 3);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+function radialTexture(stops) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, col]) => gr.addColorStop(o, col));
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const glowTex = radialTexture([[0, 'rgba(255,255,255,1)'], [0.22, 'rgba(255,255,255,.5)'], [0.55, 'rgba(255,255,255,.12)'], [1, 'rgba(255,255,255,0)']]);
+const dotTex = radialTexture([[0, 'rgba(255,255,255,1)'], [0.4, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,0)']]);
+
+/* ================= room ================= */
+const plaster = plasterTexture();
+const wall = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 26),
+  new THREE.MeshStandardMaterial({ map: plaster, bumpMap: plaster, bumpScale: 1.2, roughness: 0.96 })
+);
+wall.position.set(0, 1, -2.6);
+wall.receiveShadow = true;
+scene.add(wall);
+
+const hemi = new THREE.HemisphereLight(0xffdcb8, 0x1c120b, 0.3);
+scene.add(hemi);
+const rim = new THREE.DirectionalLight(0x9fb0d0, 0.35);
+rim.position.set(-4, 5, 4);
+scene.add(rim);
+
+/* ================= lamp ================= */
+const CEIL = 7.0, CORD = 5.6;
+const pivot = new THREE.Group();
+pivot.position.set(0, CEIL, 0);
+scene.add(pivot);
+
+const cordMat = new THREE.MeshStandardMaterial({ color: 0x2b1c13, roughness: 0.85 });
+const brass = new THREE.MeshStandardMaterial({ color: 0xc08a45, metalness: 1, roughness: 0.3 });
+const steel = new THREE.MeshStandardMaterial({ color: 0xbdb5a8, metalness: 1, roughness: 0.38 });
+const darkWire = new THREE.MeshStandardMaterial({ color: 0x4a3a30, metalness: 0.6, roughness: 0.5 });
+
+const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, CORD, 10), cordMat);
+cord.position.y = -CORD / 2;
+cord.castShadow = true;
+pivot.add(cord);
+
+const bulb = new THREE.Group();
+bulb.position.y = -CORD;
+pivot.add(bulb);
+
+function add(mesh, parent = bulb, shadow = false) {
+  mesh.castShadow = shadow;
+  parent.add(mesh);
+  return mesh;
+}
+function rod(a, b, r, mat) {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, dir.length(), 8), mat);
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  return m;
+}
+
+// socket
+add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.14, 24), brass), bulb, true).position.y = -0.06;
+add(new THREE.Mesh(new THREE.LatheGeometry([
+  V2(0.0, -0.12), V2(0.07, -0.12), V2(0.14, -0.14), V2(0.22, -0.19), V2(0.28, -0.26),
+  V2(0.295, -0.32), V2(0.295, -0.64), V2(0.28, -0.66), V2(0.26, -0.66)
+], 64), brass), bulb, true);
+for (const y of [-0.38, -0.47, -0.56]) {
+  const ring = add(new THREE.Mesh(new THREE.TorusGeometry(0.297, 0.011, 8, 64), brass));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = y;
+}
+const bottomRing = add(new THREE.Mesh(new THREE.RingGeometry(0.23, 0.29, 48), brass));
+bottomRing.rotation.x = Math.PI / 2;
+bottomRing.position.y = -0.66;
+
+// screw base
+add(new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.14, 40), steel)).position.y = -0.71;
+for (const y of [-0.69, -0.735]) {
+  const th = add(new THREE.Mesh(new THREE.TorusGeometry(0.238, 0.012, 8, 48), steel));
+  th.rotation.x = Math.PI / 2;
+  th.position.y = y;
+}
+
+// glass
+const GLASS_C = -1.45, GLASS_R = 0.6;
+const glassPts = [];
+for (let a = -90; a <= 35; a += 5) {
+  const r = THREE.MathUtils.degToRad(a);
+  glassPts.push(V2(Math.max(GLASS_R * Math.cos(r), 0), GLASS_C + GLASS_R * Math.sin(r)));
+}
+const neck = new THREE.QuadraticBezierCurve(glassPts[glassPts.length - 1], V2(0.347, -0.9), V2(0.24, -0.76));
+glassPts.push(...neck.getPoints(10).slice(1));
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color: 0xfff1dc, roughness: 0.08, metalness: 0, transparent: true, opacity: 0.2,
+  emissive: 0xffb565, emissiveIntensity: 0, side: THREE.DoubleSide, depthWrite: false,
+  clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.6
+});
+const glass = add(new THREE.Mesh(new THREE.LatheGeometry(glassPts, 72), glassMat));
+glass.renderOrder = 3;
+
+// stem, support wires, filament
+const stem = add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.44, 16), glassMat));
+stem.position.y = -0.98;
+stem.renderOrder = 2;
+add(rod(new THREE.Vector3(-0.04, -1.16, 0), new THREE.Vector3(-0.17, -1.38, 0), 0.006, darkWire));
+add(rod(new THREE.Vector3(0.04, -1.16, 0), new THREE.Vector3(0.17, -1.38, 0), 0.006, darkWire));
+add(rod(new THREE.Vector3(0, -1.18, 0), new THREE.Vector3(0, -1.44, 0), 0.004, darkWire));
+
+class FilamentCurve extends THREE.Curve {
+  getPoint(t, target = new THREE.Vector3()) {
+    const x = THREE.MathUtils.lerp(-0.17, 0.17, t);
+    const y = -1.38 - 0.07 * Math.sin(Math.PI * t);
+    const a = t * Math.PI * 2 * 34, cr = 0.013;
+    return target.set(x, y + Math.cos(a) * cr, Math.sin(a) * cr);
+  }
+}
+const filMat = new THREE.MeshStandardMaterial({ color: 0x3a2a20, emissive: 0xff8a2a, emissiveIntensity: 0, roughness: 0.5, metalness: 0.3 });
+add(new THREE.Mesh(new THREE.TubeGeometry(new FilamentCurve(), 600, 0.0045, 6, false), filMat));
+
+// glow sprites + the light itself
+const LIGHT_POS = new THREE.Vector3(0, -1.42, 0);
+const innerGlow = add(new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTex, color: 0xffb060, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false
+})));
+innerGlow.position.copy(LIGHT_POS);
+innerGlow.scale.setScalar(1.6);
+innerGlow.renderOrder = 1;
+const halo = add(new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTex, color: 0xff9440, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false
+})));
+halo.position.copy(LIGHT_POS);
+halo.scale.setScalar(9);
+
+const bulbLight = new THREE.PointLight(0xffa04d, 0, 0, 2);
+bulbLight.position.copy(LIGHT_POS);
+bulbLight.castShadow = true;
+bulbLight.shadow.mapSize.set(1024, 1024);
+bulbLight.shadow.bias = -0.004;
+bulbLight.shadow.normalBias = 0.02;
+bulbLight.shadow.camera.near = 0.1;
+bulbLight.shadow.camera.far = 25;
+bulb.add(bulbLight);
+
+// pull-switch lug on the side of the socket
+const ANCHOR = new THREE.Vector3(0.37, -0.6, 0);
+add(rod(new THREE.Vector3(0.28, -0.6, 0), new THREE.Vector3(0.35, -0.6, 0), 0.024, brass), bulb, true);
+add(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.008, 8, 20), brass)).position.copy(ANCHOR);
+
+/* ================= pull chain (verlet rope) ================= */
+const N = 26, SEG = 0.085;
+const BEAD_R = 0.02, KNOB_R = 0.09;
+const pos = [], prev = [];
+const anchorW = new THREE.Vector3();
+const glassW = new THREE.Vector3();
+const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+
+function updateAnchors() {
+  pivot.updateMatrixWorld(true);
+  bulb.localToWorld(anchorW.copy(ANCHOR));
+  bulb.localToWorld(glassW.set(0, GLASS_C, 0));
+}
+
+const beadMat = new THREE.MeshStandardMaterial({ color: 0xc89a55, metalness: 1, roughness: 0.25 });
+const beads = new THREE.InstancedMesh(new THREE.SphereGeometry(BEAD_R, 12, 8), beadMat, N * 2);
+beads.castShadow = true;
+scene.add(beads);
+
+const wood = new THREE.MeshStandardMaterial({ color: 0x7a4a26, roughness: 0.42 });
+const knob = new THREE.Group();
+const knobBody = new THREE.Mesh(new THREE.LatheGeometry([
+  V2(0, 0), V2(0.025, -0.005), V2(0.03, -0.03), V2(0.06, -0.08), V2(0.085, -0.15),
+  V2(0.09, -0.2), V2(0.08, -0.26), V2(0.05, -0.3), V2(0, -0.315)
+], 40), wood);
+knobBody.castShadow = true;
+const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.045, 20), beadMat);
+collar.position.y = -0.02;
+collar.castShadow = true;
+knob.add(knobBody, collar);
+scene.add(knob);
+
+function initRope() {
+  updateAnchors();
+  for (let i = 0; i <= N; i++) {
+    const p = anchorW.clone().add(new THREE.Vector3(0.12 * i * SEG, -i * SEG, 0));
+    pos[i] = p;
+    prev[i] = p.clone();
+  }
+  for (let s = 0; s < 600; s++) ropeStep(1 / 120, null);
+}
+
+const GRAVITY = new THREE.Vector3(0, -16, 0);
+function ropeStep(h, pinned) {
+  const g = tmp2.copy(GRAVITY).multiplyScalar(h * h);
+  for (let i = 1; i <= N; i++) {
+    if (i === N && pinned) continue;
+    const p = pos[i];
+    tmp.subVectors(p, prev[i]).multiplyScalar(0.985);
+    prev[i].copy(p);
+    p.add(tmp).add(g);
+  }
+  pos[0].copy(anchorW);
+  if (pinned) pos[N].copy(pinned);
+
+  for (let it = 0; it < 16; it++) {
+    for (let i = 0; i < N; i++) {
+      const a = pos[i], b = pos[i + 1];
+      const wa = i === 0 ? 0 : 1;
+      const wb = i + 1 === N ? (pinned ? 0 : 0.45) : 1;
+      if (wa + wb === 0) continue;
+      tmp.subVectors(b, a);
+      const len = tmp.length() || 1e-6;
+      const diff = (len - SEG) / len / (wa + wb);
+      a.addScaledVector(tmp, diff * wa);
+      b.addScaledVector(tmp, -diff * wb);
+    }
+    // keep the chain outside the glass
+    for (let i = 1; i <= N; i++) {
+      if (i === N && pinned) continue;
+      const r = GLASS_R + (i === N ? KNOB_R : BEAD_R) + 0.005;
+      tmp.subVectors(pos[i], glassW);
+      const d = tmp.length();
+      if (d < r) pos[i].addScaledVector(tmp, (r - d) / (d || 1e-6));
+    }
+  }
+}
+
+const dummy = new THREE.Object3D();
+const UP_NEG = new THREE.Vector3(0, -1, 0);
+function drawRope() {
+  for (let i = 0; i < N; i++) {
+    dummy.position.copy(pos[i]);
+    dummy.updateMatrix();
+    beads.setMatrixAt(i * 2, dummy.matrix);
+    dummy.position.lerpVectors(pos[i], pos[i + 1], 0.5);
+    dummy.updateMatrix();
+    beads.setMatrixAt(i * 2 + 1, dummy.matrix);
+  }
+  beads.instanceMatrix.needsUpdate = true;
+  knob.position.copy(pos[N]);
+  tmp.subVectors(pos[N], pos[N - 1]).normalize();
+  knob.quaternion.setFromUnitVectors(UP_NEG, tmp);
+}
+
+/* ================= dust ================= */
+const DUST = 380;
+const dustPos = new Float32Array(DUST * 3);
+const dustCol = new Float32Array(DUST * 3);
+const dustSeed = new Float32Array(DUST);
+for (let i = 0; i < DUST; i++) {
+  dustPos[i * 3] = (Math.random() - 0.5) * 7;
+  dustPos[i * 3 + 1] = -2.5 + Math.random() * 6;
+  dustPos[i * 3 + 2] = -2 + Math.random() * 4.5;
+  dustSeed[i] = Math.random() * 100;
+}
+const dustGeo = new THREE.BufferGeometry();
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+dustGeo.setAttribute('color', new THREE.BufferAttribute(dustCol, 3));
+const dustMat = new THREE.PointsMaterial({
+  size: 0.035, map: dotTex, vertexColors: true, transparent: true, opacity: 0,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+scene.add(new THREE.Points(dustGeo, dustMat));
+const lightW = new THREE.Vector3();
+function updateDust(t, L) {
+  bulb.localToWorld(lightW.copy(LIGHT_POS));
+  const speed = reduceMotion ? 0.2 : 1;
+  for (let i = 0; i < DUST; i++) {
+    const s = dustSeed[i], j = i * 3;
+    dustPos[j] += Math.sin(t * 0.3 + s) * 0.0012 * speed;
+    dustPos[j + 1] += (Math.sin(t * 0.2 + s * 2) * 0.0012 - 0.0005) * speed;
+    dustPos[j + 2] += Math.cos(t * 0.25 + s) * 0.0008 * speed;
+    if (dustPos[j + 1] < -2.5) dustPos[j + 1] = 3.5;
+    const dx = dustPos[j] - lightW.x, dy = dustPos[j + 1] - lightW.y, dz = dustPos[j + 2] - lightW.z;
+    const b = 1.4 / (1 + (dx * dx + dy * dy + dz * dz) * 0.45) * (0.6 + 0.4 * Math.sin(t * 2 + s));
+    dustCol[j] = b; dustCol[j + 1] = b * 0.78; dustCol[j + 2] = b * 0.5;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  dustGeo.attributes.color.needsUpdate = true;
+  dustMat.opacity = L * 0.8;
+}
+
+/* ================= sound ================= */
+let actx = null;
+function ensureAudio() {
+  if (!actx) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  }
+  if (actx.state === 'suspended') actx.resume();
+}
+function playClick(vol = 1, freq = 2200) {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const len = Math.floor(actx.sampleRate * 0.05);
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 8);
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 1.4;
+  const g = actx.createGain();
+  g.gain.value = 0.9 * vol;
+  src.connect(bp).connect(g).connect(actx.destination);
+  src.start(t);
+  const o = actx.createOscillator();
+  const og = actx.createGain();
+  o.frequency.setValueAtTime(190, t);
+  o.frequency.exponentialRampToValueAtTime(60, t + 0.06);
+  og.gain.setValueAtTime(0.22 * vol, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  o.connect(og).connect(actx.destination);
+  o.start(t);
+  o.stop(t + 0.1);
+}
+
+/* ================= state ================= */
+const clock = new THREE.Clock();
+const a11yBtn = $('#a11y-toggle');
+let isOn = false, onAt = 0, level = 0;
+
+// pendulum (whole lamp swings from the ceiling)
+let th = 0, thv = 0, ph = 0, phv = 0, dip = 0, dipv = 0;
+let REST_DIST = 2;
+
+function toggle() {
+  isOn = !isOn;
+  if (isOn) onAt = clock.elapsedTime;
+  document.body.classList.toggle('on', isOn);
+  a11yBtn.setAttribute('aria-pressed', String(isOn));
+  a11yBtn.textContent = isOn ? 'Chiroqni o‘chirish' : 'Chiroqni yoqish';
+  playClick(1);
+  navigator.vibrate?.(12);
+  thv += (Math.random() - 0.5) * 0.05;
+}
+
+/* grab: null | { mode: 'pointer'|'auto', target, startY, armed, ... } */
+let grab = null;
+const pinned = new THREE.Vector3();
+const force = new THREE.Vector3();
+
+function simulate(h, t) {
+  updateAnchors();
+  force.set(0, 0, 0);
+  let pin = null;
+
+  if (grab) {
+    tmp.subVectors(grab.target, anchorW);
+    const len = tmp.length() || 1e-6;
+    const maxLen = REST_DIST + 0.1;
+    const pull = grab.startY - grab.target.y;
+
+    if (grab.armed && (pull > 0.3 || len > REST_DIST + 0.24)) {
+      toggle();
+      grab.armed = false;
+    } else if (!grab.armed && pull < 0.1 && len < REST_DIST + 0.05) {
+      grab.armed = true;
+    }
+
+    if (len > maxLen) {
+      const excess = len - maxLen;
+      tmp.divideScalar(len);
+      force.copy(tmp).multiplyScalar(excess);
+      pinned.copy(anchorW).addScaledVector(tmp, maxLen + Math.min(excess * 0.25, 0.15));
+    } else {
+      pinned.copy(grab.target);
+    }
+    pin = pinned;
+  }
+
+  const breeze = reduceMotion ? 0 : Math.sin(t * 0.7) * 0.015 + Math.sin(t * 1.9) * 0.006;
+  thv += (-6 * Math.sin(th) - 0.7 * thv + force.x * 3 + breeze) * h;
+  th += thv * h;
+  phv += (-6 * Math.sin(ph) - 0.7 * phv - force.z * 3 + breeze * 0.4) * h;
+  ph += phv * h;
+  dipv += (-140 * dip - 14 * dipv + force.y * 40) * h;
+  dip = Math.max(-0.2, dip + dipv * h);
+  pivot.rotation.set(ph, 0, th);
+  pivot.position.y = CEIL + dip;
+
+  updateAnchors();
+  ropeStep(h, pin);
+}
+
+/* ================= input ================= */
+const pointer = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const dragPlane = new THREE.Plane();
+const hit = new THREE.Vector3();
+const projV = new THREE.Vector3();
+let mx = 0, my = 0, cmx = 0, cmy = 0;
+
+function toScreen(v) {
+  projV.copy(v).project(camera);
+  return { x: (projV.x + 1) / 2 * innerWidth, y: (1 - projV.y) / 2 * innerHeight };
+}
+function nearChain(x, y, touch) {
+  const s = toScreen(pos[N]);
+  if (Math.hypot(x - s.x, y - s.y) < (touch ? 60 : 42)) return true;
+  for (let i = N - 10; i < N; i++) {
+    const q = toScreen(pos[i]);
+    if (Math.hypot(x - q.x, y - q.y) < (touch ? 30 : 18)) return true;
+  }
+  return false;
+}
+function pointerHit(e) {
+  pointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster.ray.intersectPlane(dragPlane, hit);
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  ensureAudio();
+  if (grab || !nearChain(e.clientX, e.clientY, e.pointerType === 'touch')) return;
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), pos[N]);
+  const h = pointerHit(e);
+  grab = {
+    mode: 'pointer', id: e.pointerId,
+    target: pos[N].clone(), startY: pos[N].y, armed: true,
+    offset: h ? pos[N].clone().sub(h) : new THREE.Vector3(),
+    downX: e.clientX, downY: e.clientY, downT: performance.now(), moved: 0
+  };
+  document.body.classList.add('dragging');
+  canvas.style.cursor = 'grabbing';
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse') {
+    mx = e.clientX / innerWidth * 2 - 1;
+    my = e.clientY / innerHeight * 2 - 1;
+  }
+  if (grab?.mode === 'pointer' && e.pointerId === grab.id) {
+    const h = pointerHit(e);
+    if (h) grab.target.copy(h).add(grab.offset);
+    grab.moved = Math.max(grab.moved, Math.hypot(e.clientX - grab.downX, e.clientY - grab.downY));
+  } else if (!grab) {
+    canvas.style.cursor = nearChain(e.clientX, e.clientY, false) ? 'grab' : 'default';
+  }
+});
+
+function endPointer(e) {
+  if (grab?.mode !== 'pointer' || e.pointerId !== grab.id) return;
+  const wasTap = grab.moved < 6 && performance.now() - grab.downT < 350;
+  const toggled = !grab.armed;
+  grab = null;
+  document.body.classList.remove('dragging');
+  canvas.style.cursor = 'grab';
+  if (wasTap) startAutoPull();
+  else if (toggled) playClick(0.3, 3400);
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+
+function startAutoPull() {
+  if (grab) return;
+  ensureAudio();
+  grab = {
+    mode: 'auto', t0: clock.elapsedTime,
+    start: pos[N].clone(), target: pos[N].clone(), startY: pos[N].y, armed: true
+  };
+  document.body.classList.add('dragging');
+}
+function updateAutoPull() {
+  if (grab?.mode !== 'auto') return;
+  const t = clock.elapsedTime - grab.t0;
+  const down = 0.22, up = 0.38;
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  const k = t < down ? ease(t / down) : 1 - ease(Math.min((t - down) / up, 1));
+  grab.target.copy(grab.start).add(tmp.set(0.02 * k, -0.55 * k, 0));
+  if (t >= down + up) {
+    grab = null;
+    document.body.classList.remove('dragging');
+    playClick(0.3, 3400);
+  }
+}
+
+addEventListener('keydown', (e) => {
+  if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat && !e.target.closest?.('a, button')) {
+    e.preventDefault();
+    startAutoPull();
+  }
+});
+a11yBtn.addEventListener('click', startAutoPull);
+
+/* ================= layout ================= */
+const layout = { camX: 0, camZ: 6.4, lookY: 0.35 };
+function updateLayout() {
+  const a = innerWidth / innerHeight;
+  if (a >= 1.05) {
+    layout.camX = -1.55 * Math.min(a / 1.6, 1.15);
+    layout.camZ = 6.4; layout.lookY = 0.35; camera.fov = 38;
+  } else if (a >= 0.75) {
+    layout.camX = 0; layout.camZ = 7.8; layout.lookY = 0.6; camera.fov = 40;
+  } else {
+    layout.camX = 0; layout.camZ = 9.4; layout.lookY = 0.95; camera.fov = 40;
+  }
+  camera.aspect = a;
+  camera.updateProjectionMatrix();
+}
+function onResize() {
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  updateLayout();
+}
+addEventListener('resize', onResize);
+updateLayout();
+
+/* ================= frame ================= */
+const hintEl = $('#hint');
+const filLow = new THREE.Color(0xff4a10), filHigh = new THREE.Color(0xffa040);
+const glassCenterW = new THREE.Vector3();
+
+function lightCurve(t) {
+  // tungsten flicker right after switching on
+  if (t < 0.05) return 0.55;
+  if (t < 0.11) return 0.08;
+  if (t < 0.17) return 0.9;
+  if (t < 0.24) return 0.35;
+  return 1;
+}
+
+const STEP = 1 / 120;
+let acc = 0;
+function frame() {
+  const dt = Math.min(clock.getDelta(), 1 / 20);
+  const t = clock.elapsedTime;
+
+  updateAutoPull();
+  acc += dt;
+  while (acc >= STEP) { simulate(STEP, t); acc -= STEP; }
+  drawRope();
+
+  // light level
+  const target = isOn ? lightCurve(t - onAt) : 0;
+  level += (target - level) * (1 - Math.exp(-(isOn ? 22 : 6) * dt));
+  const hum = isOn ? 1 + Math.sin(t * 37) * 0.006 + Math.sin(t * 13.3) * 0.008 : 1;
+  const L = level * hum;
+
+  bulbLight.intensity = L * 22;
+  filMat.emissive.copy(filLow).lerp(filHigh, Math.min(L, 1));
+  filMat.emissiveIntensity = L * 9;
+  glassMat.emissiveIntensity = L * 0.32;
+  glassMat.opacity = 0.2 + L * 0.2;
+  innerGlow.material.opacity = L * 0.5;
+  halo.material.opacity = L * 0.11;
+  bloom.strength = 0.25 + L * 0.45;
+  hemi.intensity = 0.28 + L * 0.3;
+  rim.intensity = 0.35 * (1 - L * 0.8);
+  scene.environmentIntensity = 0.12 + L * 0.22;
+  renderer.toneMappingExposure = 0.95;
+  scene.background.copy(OFF_BG).lerp(ON_BG, Math.min(L, 1));
+  scene.fog.color.copy(scene.background);
+  updateDust(t, L);
+
+  // camera parallax
+  const p = reduceMotion ? 0 : 1;
+  cmx += (mx - cmx) * (1 - Math.exp(-3 * dt));
+  cmy += (my - cmy) * (1 - Math.exp(-3 * dt));
+  camera.position.set(layout.camX + cmx * 0.45 * p, layout.lookY + 0.45 - cmy * 0.25 * p, layout.camZ);
+  camera.lookAt(layout.camX, layout.lookY, 0);
+
+  composer.render();
+
+  // overlay sync
+  bulb.localToWorld(glassCenterW.set(0, GLASS_C, 0));
+  const gs = toScreen(glassCenterW);
+  root.style.setProperty('--bx', gs.x.toFixed(1) + 'px');
+  root.style.setProperty('--by', gs.y.toFixed(1) + 'px');
+  root.style.setProperty('--glow', Math.min(L, 1).toFixed(3));
+  const hs = toScreen(pos[N]);
+  const hw = hintEl.offsetWidth;
+  const hx = hs.x + 22 + hw > innerWidth - 12 ? hs.x - 22 - hw : hs.x + 22;
+  hintEl.style.transform = `translate(${hx.toFixed(1)}px, ${(hs.y - 14).toFixed(1)}px)`;
+
+  requestAnimationFrame(frame);
+}
+
+initRope();
+REST_DIST = anchorW.distanceTo(pos[N]);
+drawRope();
+requestAnimationFrame(() => {
+  document.body.classList.add('ready');
+  clock.start();
+  frame();
+});
+</script>
+</body>
+</html>
